@@ -26,6 +26,7 @@ export const SignUpCard = ({ setState }: SignUpCardProps) => {
   // const router = useRouter();
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const onSubmit = (event: React.ChangeEvent<HTMLFormElement>) => {
@@ -33,6 +34,7 @@ export const SignUpCard = ({ setState }: SignUpCardProps) => {
     const payload = {
       email,
       password,
+      name,
     };
     if (password !== confirmPassword) {
       toast.error("Password does'nt match!");
@@ -40,10 +42,7 @@ export const SignUpCard = ({ setState }: SignUpCardProps) => {
     }
     createUserMutation.mutate(payload, {
       onSuccess: () => {
-        signIn("credentials", {
-          email,
-          password,
-        });
+        setState("signIn");
       },
     });
     console.log({
@@ -64,6 +63,13 @@ export const SignUpCard = ({ setState }: SignUpCardProps) => {
       </CardHeader>
       <CardContent className="space-y-5 px-0 pb-0">
         <form className="space-y-2.5" onSubmit={onSubmit}>
+          <Input
+            disabled={false}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Name"
+            value={name}
+            required
+          />
           <Input
             disabled={false}
             onChange={(event) => setEmail(event.target.value)}

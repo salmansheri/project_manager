@@ -14,7 +14,6 @@ import { eq } from "drizzle-orm";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: DrizzleAdapter(db, {
-    // @ts-expect-error never mind
     usersTable: users,
     accountsTable: accounts,
     sessionsTable: sessions,
@@ -36,13 +35,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!credentials.email || !credentials.password) {
           throw new Error("Invalid Credentials");
         }
-        console.log(credentials);
 
         const [user] = await db
           .select()
           .from(users)
           .where(eq(users.email, credentials.email as string));
-        console.log(user);
         if (!user || !user.email || !user.password) {
           throw new Error("Cannot find user");
         }
@@ -63,6 +60,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async redirect({ baseUrl }) {
       return baseUrl;
+    },
+    async jwt({ token, user }) {
+      if (user) {
+        token.name = user.name;
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      session.user.name = token.name;
+      // @ts-expect-error "type error"
+      session.user.id = token.id;
+      return session;
     },
   },
   secret: process.env.AUTH_SECRET,

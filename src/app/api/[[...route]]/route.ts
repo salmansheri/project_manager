@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { handle } from "hono/vercel";
 import { HTTPException } from "hono/http-exception";
 import User from "./user";
+import Workspaces from "./workspaces";
 
 const app = new Hono().basePath("/api");
 app.onError((err, c) => {
@@ -11,7 +12,7 @@ app.onError((err, c) => {
   return c.json({ error: "Internal Server Error" });
 });
 
-const routes = app.route("/user", User);
+const routes = app.route("/user", User).route("/workspaces", Workspaces);
 export const GET = handle(app);
 export const POST = handle(app);
 export const DELETE = handle(app);

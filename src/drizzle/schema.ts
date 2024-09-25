@@ -6,16 +6,21 @@ import {
   integer,
   primaryKey,
 } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
 
 export const users = pgTable("user", {
   id: text("id").primaryKey(),
+  name: text("name"),
   email: text("email").notNull().unique(),
   password: text("password"),
   emailVerified: timestamp("emailVerified", { mode: "date" }),
   image: text("image"),
 });
 
+export const usersRelations = relations(users, ({ many }) => ({
+  workspaces: many(workspaces),
+}));
 export type InsertUser = typeof users.$inferInsert;
 export type SelectUser = typeof users.$inferSelect;
 
@@ -85,3 +90,19 @@ export const authenticators = pgTable(
     }),
   }),
 );
+
+export const workspaces = pgTable("workspace", {
+  id: text("id").primaryKey(),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id),
+  name: text("name").notNull(),
+  joinCode: text("joinCode"),
+});
+
+export const workspacesRelations = relations(workspaces, ({ one }) => ({
+  user: one(users, {
+    fields: [workspaces.userId],
+    references: [users.id],
+  }),
+}));

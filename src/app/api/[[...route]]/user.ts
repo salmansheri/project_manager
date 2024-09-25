@@ -16,6 +16,7 @@ const app = new Hono()
       z.object({
         email: z.string().email(),
         password: z.string(),
+        name: z.string(),
       }),
     ),
     async (c) => {
@@ -30,6 +31,7 @@ const app = new Hono()
           id: createId(),
           email: values.email,
           password: hashedPassword,
+          name: values.name,
         })
         .returning();
       if (!data) {

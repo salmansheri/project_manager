@@ -22,6 +22,27 @@
       "when": 1727185742396,
       "tag": "0002_nappy_joystick",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1727264866414,
+      "tag": "0003_chilly_blizzard",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1727269563921,
+      "tag": "0004_next_brother_voodoo",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1727269990392,
+      "tag": "0005_blushing_nomad",
+      "breakpoints": true
     }
   ]
 }
