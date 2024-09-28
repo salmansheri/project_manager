@@ -1,0 +1,359 @@
+diff --git a/src/app/api/[[...route]]/workspaces.ts b/src/app/api/[[...route]]/workspaces.ts
+index 455e73a..38fa46e 100644
+--- a/src/app/api/[[...route]]/workspaces.ts
++++ b/src/app/api/[[...route]]/workspaces.ts
+@@ -2,33 +2,126 @@ import { Hono } from "hono";
+ import { auth } from "@/lib/auth";
+ import { db } from "@/lib/db";
+ import { workspaces } from "@/drizzle/schema";
++import { zValidator } from "@hono/zod-validator";
++import { eq } from "drizzle-orm";
++import * as z from "zod";
++import { createId } from "@paralleldrive/cuid2";
+ 
+-const app = new Hono().get("/", async (c) => {
+-  const session = await auth();
+-  if (!session) {
+-    return c.json(
+-      {
+-        error: "Not allowed",
+-      },
+-      405,
+-    );
+-  }
+-
+-  const [data] = await db.select().from(workspaces);
+-  if (!data) {
+-    return c.json(
+-      {
+-        error: "Cannot find workspaces",
+-      },
+-      404,
+-    );
+-  }
+-  return c.json(
+-    {
+-      data,
++const app = new Hono()
++  .get("/", async (c) => {
++    const session = await auth();
++    if (!session) {
++      return c.json(
++        {
++          error: "Not allowed",
++        },
++        405,
++      );
++    }
++
++    const data = await db.select().from(workspaces);
++    if (!data) {
++      return c.json(
++        {
++          error: "Cannot find workspaces",
++        },
++        404,
++      );
++    }
++    return c.json(data, 200);
++  })
++  .get(
++    "/:id",
++    zValidator(
++      "param",
++      z.object({
++        id: z.string(),
++      }),
++    ),
++    async (c) => {
++      const session = await auth();
++      const param = c.req.valid("param");
++
++      if (!session) {
++        return c.json(
++          {
++            error: "Not allowed ",
++          },
++          400,
++        );
++      }
++
++      const [data] = await db
++        .select()
++        .from(workspaces)
++        .where(eq(workspaces.id, param.id));
++      if (!data) {
++        return c.json(
++          {
++            error: "cannot find data",
++          },
++          400,
++        );
++      }
++      return c.json(
++        {
++          data,
++        },
++        200,
++      );
++    },
++  )
++  .post(
++    "/create",
++    zValidator(
++      "json",
++      z.object({
++        name: z.string(),
++      }),
++    ),
++    async (c) => {
++      const session = await auth();
++      if (!session?.user?.email) {
++        return c.json(
++          {
++            error: "Not Allowed",
++          },
++          400,
++        );
++      }
++
++      const values = c.req.valid("json");
++      // TODO Create a proper method later
++
++      const joinCode = "123456";
++
++      const [data] = await db
++        .insert(workspaces)
++        .values({
++          id: createId(),
++          userId: session?.user?.id as string,
++          name: values.name,
++          joinCode: joinCode,
++        })
++        .returning();
++
++      if (!data) {
++        return c.json(
++          {
++            error: "Cannot Create workspace",
++          },
++          400,
++        );
++      }
++
++      return c.json(
++        {
++          data,
++          message: "success",
++        },
++        200,
++      );
+     },
+-    200,
+   );
+-});
+ 
+ export default app;
+diff --git a/src/app/globals.css b/src/app/globals.css
+index 4874285..a449dc4 100644
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -8,22 +8,20 @@ body,
+   height: 100%;
+   width: 100%;
+ }
+-
+-:root {
+-  --background: #ffffff;
+-  --foreground: #171717;
+-}
+-
+-@media (prefers-color-scheme: dark) {
+-  :root {
+-    --background: #0a0a0a;
+-    --foreground: #ededed;
+-  }
+-}
++/**/
++/*:root {*/
++/*  --background: #ffffff;*/
++/*  --foreground: #171717;*/
++/*}*/
++/**/
++/*@media (prefers-color-scheme: dark) {*/
++/*  :root {*/
++/*    --background: #0a0a0a;*/
++/*    --foreground: #ededed;*/
++/*  }*/
++/*}*/
+ 
+ body {
+-  color: var(--foreground);
+-  background: var(--background);
+   font-family: Arial, Helvetica, sans-serif;
+ }
+ 
+diff --git a/src/app/layout.tsx b/src/app/layout.tsx
+index eff039e..eb38a00 100644
+--- a/src/app/layout.tsx
++++ b/src/app/layout.tsx
+@@ -3,6 +3,7 @@ import localFont from "next/font/local";
+ import "./globals.css";
+ import { ReactQueryProvider } from "@/components/provider/react-query-provider";
+ import { Toaster } from "@/components/ui/sonner";
++import { Modals } from "@/components/modals";
+ 
+ const geistSans = localFont({
+   src: "./fonts/GeistVF.woff",
+@@ -31,6 +32,7 @@ export default function RootLayout({
+         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+       >
+         <ReactQueryProvider>
++          <Modals />
+           {children}
+           <Toaster />
+         </ReactQueryProvider>
+diff --git a/src/app/page.tsx b/src/app/page.tsx
+index a5e6a6c..eeb01f5 100644
+--- a/src/app/page.tsx
++++ b/src/app/page.tsx
+@@ -4,7 +4,6 @@ import { HomeClient } from "@/components/home";
+ 
+ export default async function Home() {
+   const session = await auth();
+-  console.log(session?.user);
+ 
+   return (
+     <div>
+diff --git a/src/components/home.tsx b/src/components/home.tsx
+index 603744c..f15eeb5 100644
+--- a/src/components/home.tsx
++++ b/src/components/home.tsx
+@@ -1,28 +1,30 @@
+ "use client";
+ 
+ import { useGetWorkspaces } from "@/hooks/api/use-get-workspaces";
++import { useRouter } from "next/navigation";
+ import { useEffect, useMemo } from "react";
+-import { Loader } from "./loader";
++import { useCreateWorkspaceModal } from "@/hooks/use-create-workspace-modal";
+ export const HomeClient = () => {
+   const getWorkspacesQuery = useGetWorkspaces();
++  const router = useRouter();
++  const [open, setOpen] = useCreateWorkspaceModal();
++  console.log(getWorkspacesQuery.data);
++
++  console.log(typeof getWorkspacesQuery.data);
+ 
+   const workspaceId = useMemo(() => {
+-    return getWorkspacesQuery?.data?.id;
+-  }, [getWorkspacesQuery.data]);
+-  useEffect(() => {
+-    if (getWorkspacesQuery.isLoading) {
+-      return null;
+-    }
++    return getWorkspacesQuery?.data?.[0]?.id;
++  }, [getWorkspacesQuery?.data]);
+ 
++  useEffect(() => {
+     if (workspaceId) {
+-      console.log("Redirect to workspace");
+-    } else {
++      router.push(`/workspaces/${workspaceId}`);
++      setOpen(false);
++    } else if (!open) {
++      setOpen(true);
+       console.log("Open Creation Model");
+     }
+-  }, [getWorkspacesQuery.isLoading, workspaceId]);
++  }, [open, setOpen, workspaceId, getWorkspacesQuery?.data, router]);
+ 
+-  if (getWorkspacesQuery.isLoading) {
+-    return <Loader />;
+-  }
+   return <div></div>;
+ };
+diff --git a/src/components/loader.tsx b/src/components/loader.tsx
+index d0a45d3..63ec21f 100644
+--- a/src/components/loader.tsx
++++ b/src/components/loader.tsx
+@@ -1,9 +1,8 @@
+-import { LuLoader2 } from "react-icons/lu";
+-
++import { Loader2 } from "lucide-react";
+ export const Loader = () => {
+   return (
+     <div className="h-screen flex items-center justify-center">
+-      <LuLoader2 className="size-10 animate-spin" />
++      <Loader2 className="size-10 animate-spin" />
+     </div>
+   );
+ };
+diff --git a/src/components/ui/button.tsx b/src/components/ui/button.tsx
+index 0270f64..154592e 100644
+--- a/src/components/ui/button.tsx
++++ b/src/components/ui/button.tsx
+@@ -1,8 +1,8 @@
+-import * as React from "react"
+-import { Slot } from "@radix-ui/react-slot"
+-import { cva, type VariantProps } from "class-variance-authority"
++import * as React from "react";
++import { Slot } from "@radix-ui/react-slot";
++import { cva, type VariantProps } from "class-variance-authority";
+ 
+-import { cn } from "@/lib/utils"
++import { cn } from "@/lib/utils";
+ 
+ const buttonVariants = cva(
+   "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+@@ -19,39 +19,41 @@ const buttonVariants = cva(
+           "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
+         ghost: "hover:bg-accent hover:text-accent-foreground",
+         link: "text-primary underline-offset-4 hover:underline",
++        transparent: "bg-transparent hover:bg-accent/10 text-accent",
+       },
+       size: {
+         default: "h-9 px-4 py-2",
+         sm: "h-8 rounded-md px-3 text-xs",
+         lg: "h-10 rounded-md px-8",
+         icon: "h-9 w-9",
++        iconSm: "size-8",
+       },
+     },
+     defaultVariants: {
+       variant: "default",
+       size: "default",
+     },
+-  }
+-)
++  },
++);
+ 
+ export interface ButtonProps
+   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+     VariantProps<typeof buttonVariants> {
+-  asChild?: boolean
++  asChild?: boolean;
+ }
+ 
+ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+   ({ className, variant, size, asChild = false, ...props }, ref) => {
+-    const Comp = asChild ? Slot : "button"
++    const Comp = asChild ? Slot : "button";
+     return (
+       <Comp
+         className={cn(buttonVariants({ variant, size, className }))}
+         ref={ref}
+         {...props}
+       />
+-    )
+-  }
+-)
+-Button.displayName = "Button"
++    );
++  },
++);
++Button.displayName = "Button";
+ 
+-export { Button, buttonVariants }
++export { Button, buttonVariants };

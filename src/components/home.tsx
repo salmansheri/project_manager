@@ -1,28 +1,30 @@
 "use client";
 
 import { useGetWorkspaces } from "@/hooks/api/use-get-workspaces";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
-import { Loader } from "./loader";
+import { useCreateWorkspaceModal } from "@/hooks/use-create-workspace-modal";
 export const HomeClient = () => {
   const getWorkspacesQuery = useGetWorkspaces();
+  const router = useRouter();
+  const [open, setOpen] = useCreateWorkspaceModal();
+  console.log(getWorkspacesQuery.data);
+
+  console.log(typeof getWorkspacesQuery.data);
 
   const workspaceId = useMemo(() => {
-    return getWorkspacesQuery?.data?.id;
-  }, [getWorkspacesQuery.data]);
-  useEffect(() => {
-    if (getWorkspacesQuery.isLoading) {
-      return null;
-    }
+    return getWorkspacesQuery?.data?.[0]?.id;
+  }, [getWorkspacesQuery?.data]);
 
+  useEffect(() => {
     if (workspaceId) {
-      console.log("Redirect to workspace");
-    } else {
+      router.push(`/workspaces/${workspaceId}`);
+      setOpen(false);
+    } else if (!open) {
+      setOpen(true);
       console.log("Open Creation Model");
     }
-  }, [getWorkspacesQuery.isLoading, workspaceId]);
+  }, [open, setOpen, workspaceId, getWorkspacesQuery?.data, router]);
 
-  if (getWorkspacesQuery.isLoading) {
-    return <Loader />;
-  }
   return <div></div>;
 };
